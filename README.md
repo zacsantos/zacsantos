@@ -30,7 +30,7 @@ Tools & Others:   Git, Docker, Agile/Scrum, TOTVS Integration
 ---
 
 ### 📈 GitHub Stats
-<div align="center"><img width="48%" style="margin-right:20px" src="https://github-stats-extended.vercel.app/api?username=ZaPeZaPe&show_icons=true&theme=transparent"/><img width="36.5%" style="margin-left:20px" src="https://github-stats-extended.vercel.app/api/top-langs/?username=zacsantos&layout=compact&theme=transparent" /> </div>
+<div align="center"><img width="48%" style="margin-right:20px" src="https://github-stats-extended.vercel.app/api?username=zacsantos&show_icons=true&theme=transparent"/><img width="36.5%" style="margin-left:20px" src="https://github-stats-extended.vercel.app/api/top-langs/?username=zacsantos&layout=compact&theme=transparent" /> </div>
 
 ---
 
