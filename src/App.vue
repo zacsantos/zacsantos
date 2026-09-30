@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import certificateUrl from '../assets/CertificateOfAppreciation.jpg'
 import {
   ArrowDown, ArrowLeft, ArrowRight, ArrowUpRight, Award, Braces, Car, Check, ChevronDown,
@@ -111,13 +111,34 @@ const automationLogs = ref([])
 const automationProgress = ref(0)
 const automationOutput = ref('')
 let automationTimers = []
+let experienceScrollTimer = null
 
-const projectIndex = computed(() => {
-  const all = experiences.flatMap((experience) => experience.projects)
-  return activeProject.value ? all.findIndex((item) => item.title === activeProject.value.title) : -1
-})
+const orderedProjectList = computed(() => experiences.flatMap((experience) => orderedProjects(experience)))
+const projectIndex = computed(() => activeProject.value ? orderedProjectList.value.findIndex((item) => item.title === activeProject.value.title) : -1)
 
-function toggleExperience(index) { activeExperience.value = activeExperience.value === index ? -1 : index }
+function toggleExperience(index, event) {
+  const previousIndex = activeExperience.value
+  const opening = previousIndex !== index
+  activeExperience.value = opening ? index : -1
+  if (!opening) return
+
+  const experienceItem = event.currentTarget.closest('.experience-item')
+  nextTick(() => {
+    window.requestAnimationFrame(() => {
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      const collapsingSectionAbove = previousIndex >= 0 && previousIndex < index
+      const layoutDelay = !reduceMotion && collapsingSectionAbove ? 520 : 0
+
+      if (experienceScrollTimer) window.clearTimeout(experienceScrollTimer)
+      experienceScrollTimer = window.setTimeout(() => {
+        experienceItem?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' })
+        experienceScrollTimer = null
+      }, layoutDelay)
+    })
+  })
+}
+function orderedProjects(experience) { return [...experience.projects].sort((a, b) => Number(Boolean(b.featured)) - Number(Boolean(a.featured))) }
+function shouldIsolateFeatured(project, experience) { return Boolean(project.featured) && (experience.projects.length - 1) % 2 === 0 }
 function clearAutomationTimers() { automationTimers.forEach((timer) => window.clearTimeout(timer)); automationTimers = [] }
 function resetAutomation() { clearAutomationTimers(); automationStatus.value = 'idle'; automationLogs.value = []; automationProgress.value = 0; automationOutput.value = '' }
 function selectAutomation(automation) {
@@ -139,7 +160,7 @@ function runMockAutomation() {
 function openProject(project) { activeProject.value = project; resetAutomation(); document.body.classList.add('modal-open') }
 function closeProject() { clearAutomationTimers(); certificateOpen.value = false; activeProject.value = null; document.body.classList.remove('modal-open') }
 function moveProject(direction) {
-  const all = experiences.flatMap((experience) => experience.projects)
+  const all = orderedProjectList.value
   activeProject.value = all[(projectIndex.value + direction + all.length) % all.length]
   resetAutomation()
 }
@@ -150,13 +171,25 @@ function onKeydown(event) {
   if (activeProject.value?.preview !== 'automation' && event.key === 'ArrowLeft') moveProject(-1)
 }
 onMounted(() => window.addEventListener('keydown', onKeydown))
-onBeforeUnmount(() => { window.removeEventListener('keydown', onKeydown); clearAutomationTimers() })
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKeydown)
+  clearAutomationTimers()
+  if (experienceScrollTimer) window.clearTimeout(experienceScrollTimer)
+})
 </script>
 
 <template>
   <div class="site-shell">
     <header class="site-header">
-      <a class="wordmark" href="#top" aria-label="Isaac Santos, home">IS<span>.</span></a>
+      <a class="wordmark" href="#top" aria-label="Isaac Luís Silva Santos, home">
+        <span class="wordmark-part" aria-hidden="true">
+          <strong class="wordmark-initial">I</strong><span class="wordmark-tail given-name">saac Luís Silva&nbsp;</span>
+        </span>
+        <span class="wordmark-part surname" aria-hidden="true">
+          <strong class="wordmark-initial">S</strong><span class="wordmark-tail surname-tail">antos</span>
+        </span>
+        <i aria-hidden="true">.</i>
+      </a>
       <button class="menu-button" aria-label="Toggle navigation" @click="menuOpen = !menuOpen"><X v-if="menuOpen" :size="22" /><Menu v-else :size="22" /></button>
       <nav :class="['nav-links', { open: menuOpen }]" aria-label="Main navigation">
         <a href="#about" @click="menuOpen = false">About</a><a href="#experience" @click="menuOpen = false">Experience</a>
@@ -190,7 +223,7 @@ onBeforeUnmount(() => { window.removeEventListener('keydown', onKeydown); clearA
         <div class="section-grid section-heading"><div class="section-label">02 / Experience</div><div><h2>Selected systems</h2><p>Open an experience, then choose a reconstructed project preview.</p></div></div>
         <div class="experience-list">
           <article v-for="(experience, index) in experiences" :key="experience.role" class="experience-item">
-            <button class="experience-trigger" :aria-expanded="activeExperience === index" @click="toggleExperience(index)">
+            <button class="experience-trigger" :aria-expanded="activeExperience === index" @click="toggleExperience(index, $event)">
               <span class="experience-period">{{ experience.period }}</span>
               <span class="experience-main"><strong>{{ experience.role }}</strong><small>{{ experience.company }}</small></span>
               <span class="experience-summary">{{ experience.summary }}</span>
@@ -198,12 +231,12 @@ onBeforeUnmount(() => { window.removeEventListener('keydown', onKeydown); clearA
             </button>
             <div :class="['project-drawer', { open: activeExperience === index }]">
               <div class="drawer-inner">
-                <button v-for="project in experience.projects" :key="project.title" :class="['project-card', { featured: project.featured }]" @click="openProject(project)">
+                <button v-for="project in orderedProjects(experience)" :key="project.title" :class="['project-card', { featured: project.featured, isolated: shouldIsolateFeatured(project, experience) }]" @click="openProject(project)">
                   <div class="project-visual" :style="{ '--accent': project.accent }">
                     <div v-if="project.preview === 'contract'" class="mini-contract"><div class="contract-sheet"><FileText :size="20" /><span>v3 · current</span></div><div class="version-stack"><i></i><i></i><GitBranch :size="18" /></div><div class="chat-dot"><MessageSquare :size="17" /><b>3</b></div></div>
                     <div v-else-if="project.preview === 'invoice'" class="mini-invoice"><div class="mini-steps"><i class="done"></i><i class="active"></i><i></i></div><span></span><span></span><span class="short"></span><div><FileCheck2 :size="18" /> Ready for review</div></div>
                     <div v-else-if="project.preview === 'handoff'" class="mini-handoff"><div><Database :size="20" /><small>Source</small></div><span><i></i><i></i><i></i></span><div class="review"><Check :size="20" /><small>Review</small></div><span><i></i><i></i><i></i></span><div><Send :size="20" /><small>Send</small></div></div>
-                    <div v-else-if="project.preview === 'automation'" class="mini-automation"><div class="auto-list"><span><Play :size="12" /> Archive</span><span><Play :size="12" /> Reconcile</span><span><Play :size="12" /> Summary</span></div><div class="auto-console"><b>FIFO / 01</b><i></i><i></i><i></i><small>ready_</small></div></div>
+                    <div v-else-if="project.preview === 'automation'" class="mini-automation"><div class="auto-list"><span><Play :size="12" /> Archive</span><span><Play :size="12" /> Reconcile</span><span><Play :size="12" /> Summary</span></div><div class="auto-console"><b>FIFO / 01</b><i></i><i></i><i></i><small>ready</small></div></div>
                     <div v-else-if="project.preview === 'safetybot'" class="mini-safety-bot"><div><Database :size="18" /><small>Pending work</small></div><span>+</span><div><FileText :size="18" /><small>Owner matrix</small></div><span>→</span><div class="bot-message"><Send :size="18" /><small>3 grouped notes</small></div><b><Award :size="15" /> 1st</b></div>
                     <div v-else-if="project.preview === 'vehicle'" class="mini-vehicle"><Car :size="54" /><div><span v-for="n in 5" :key="n" :class="{ active: n < 4 }"></span></div><small>adaptive signal set</small></div>
                     <div v-else class="mini-network"><Radio :size="38" /><div class="packet-stream"><i v-for="n in 5" :key="n"></i></div><b>87%</b></div>
@@ -264,7 +297,7 @@ onBeforeUnmount(() => { window.removeEventListener('keydown', onKeydown); clearA
           </div>
 
           <div class="case-content"><section><span>THE CHALLENGE</span><p>{{ activeProject.challenge }}</p></section><section><span>THE RESPONSE</span><p>{{ activeProject.response }}</p></section><section v-if="activeProject.recognition" class="recognition-summary"><Award :size="22" /><span>RECOGNITION</span><p>{{ activeProject.recognition }}</p></section><section class="contribution"><span>MY CONTRIBUTION</span><ul><li v-for="item in activeProject.contribution" :key="item">{{ item }}</li></ul></section></div>
-          <footer class="case-footer"><button @click="moveProject(-1)"><ArrowLeft :size="18" /> Previous</button><span>{{ projectIndex + 1 }} / {{ experiences.flatMap((item) => item.projects).length }}</span><button @click="moveProject(1)">Next <ArrowRight :size="18" /></button></footer>
+          <footer class="case-footer"><button @click="moveProject(-1)"><ArrowLeft :size="18" /> Previous</button><span>{{ projectIndex + 1 }} / {{ orderedProjectList.length }}</span><button @click="moveProject(1)">Next <ArrowRight :size="18" /></button></footer>
         </article>
         <div v-if="certificateOpen" class="certificate-lightbox" role="dialog" aria-modal="true" aria-label="Original certificate of appreciation">
           <button class="certificate-backdrop" aria-label="Close certificate" @click="certificateOpen = false"></button>
